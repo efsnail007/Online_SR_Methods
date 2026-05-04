@@ -49,6 +49,9 @@ def build_client_factory(
                     "description": None,
                     "tags": [],
                     "options": {},
+                    "requested_providers": None,
+                    "available_providers": None,
+                    "active_providers": None,
                 }
 
             def models_info(self) -> list[dict[str, object]]:

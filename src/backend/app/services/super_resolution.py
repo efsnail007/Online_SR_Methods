@@ -62,6 +62,9 @@ class SuperResolutionService:
             "description": info["description"],
             "tags": info["tags"],
             "options": info["options"],
+            "requested_providers": info.get("requested_providers"),
+            "available_providers": info.get("available_providers"),
+            "active_providers": info.get("active_providers"),
         }
 
     def process_base64_image(

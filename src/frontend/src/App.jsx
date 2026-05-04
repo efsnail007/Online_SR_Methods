@@ -22,7 +22,7 @@ const FALLBACK_MODEL_OPTIONS = [
     name: "Real-ESRGAN x4plus ONNX",
     kind: "onnx",
   },
-  { id: "bicubic", name: "Bicubic", kind: "bicubic" },
+  { id: "bicubic", name: "Бикубическая интерполяция", kind: "bicubic" },
 ];
 const FALLBACK_MODEL_ID = FALLBACK_MODEL_OPTIONS[0].id;
 
@@ -73,11 +73,11 @@ function getInitialApiBaseUrl() {
 }
 
 function formatMs(value) {
-  return value == null ? "n/a" : `${value.toFixed(1)} ms`;
+  return value == null ? "н/д" : `${value.toFixed(1)} мс`;
 }
 
 function formatFps(value) {
-  return value <= 0 ? "0.0 fps" : `${value.toFixed(1)} fps`;
+  return value <= 0 ? "0.0 к/с" : `${value.toFixed(1)} к/с`;
 }
 
 function formatModelLabel(value, models) {
@@ -118,13 +118,13 @@ export default function App() {
   );
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
-  const [sourceStatus, setSourceStatus] = useState("Idle");
-  const [backendStatus, setBackendStatus] = useState("Checking backend...");
+  const [sourceStatus, setSourceStatus] = useState("Ожидание");
+  const [backendStatus, setBackendStatus] = useState("Проверка backend...");
   const [processedFrameUrl, setProcessedFrameUrl] = useState(null);
   const [processingTimeMs, setProcessingTimeMs] = useState(null);
   const [roundTripMs, setRoundTripMs] = useState(null);
   const [processedFps, setProcessedFps] = useState(0);
-  const [lastResolution, setLastResolution] = useState("n/a");
+  const [lastResolution, setLastResolution] = useState("н/д");
   const [lastError, setLastError] = useState("");
   const [processWidthInput, setProcessWidthInput] = useState(
     String(DEFAULT_PROCESS_WIDTH),
@@ -178,7 +178,7 @@ export default function App() {
         fetch(`${baseUrl}/models`),
       ]);
       if (!healthResponse.ok) {
-        throw new Error(`Backend responded with ${healthResponse.status}`);
+        throw new Error(`Backend ответил кодом ${healthResponse.status}`);
       }
       const payload = await healthResponse.json();
       if (modelsResponse.ok) {
@@ -199,13 +199,15 @@ export default function App() {
       }
       if (mountedRef.current) {
         setBackendStatus(
-          `Backend ready: ${payload.model_name} on ${payload.device}`,
+          `Backend готов: ${payload.model_name}, устройство ${payload.device}`,
         );
       }
     } catch (error) {
       if (mountedRef.current) {
         setBackendStatus(
-          error instanceof Error ? error.message : "Backend health check failed.",
+          error instanceof Error
+            ? error.message
+            : "Не удалось проверить backend.",
         );
       }
     }
@@ -219,7 +221,7 @@ export default function App() {
     setApiBaseUrl(nextApiBaseUrl);
     setApiBaseUrlInput(nextApiBaseUrl);
     writeStoredApiBaseUrl(nextApiBaseUrl);
-    setBackendStatus("Checking backend...");
+    setBackendStatus("Проверка backend...");
     void checkBackendHealth(nextApiBaseUrl);
   }
 
@@ -263,7 +265,7 @@ export default function App() {
 
   async function startCamera() {
     setLastError("");
-    setSourceStatus("Requesting camera...");
+    setSourceStatus("Запрос доступа к камере...");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -278,7 +280,7 @@ export default function App() {
       streamRef.current = stream;
       const videoElement = videoRef.current;
       if (!videoElement) {
-        throw new Error("Video element is not available.");
+        throw new Error("Видеоэлемент недоступен.");
       }
 
       videoElement.srcObject = stream;
@@ -287,15 +289,17 @@ export default function App() {
       cameraActiveRef.current = true;
       setCameraReady(true);
       setCameraActive(true);
-      setSourceStatus("Camera live");
+      setSourceStatus("Камера включена");
       scheduleNextFrame(0);
     } catch (error) {
       cameraActiveRef.current = false;
       stopCameraTracks();
       setCameraReady(false);
       setCameraActive(false);
-      setSourceStatus("Camera unavailable");
-      setLastError(error instanceof Error ? error.message : "Unable to start camera.");
+      setSourceStatus("Камера недоступна");
+      setLastError(
+        error instanceof Error ? error.message : "Не удалось запустить камеру.",
+      );
     }
   }
 
@@ -305,7 +309,7 @@ export default function App() {
     stopCameraTracks();
     setCameraActive(false);
     setCameraReady(false);
-    setSourceStatus("Stream stopped");
+    setSourceStatus("Поток остановлен");
   }
 
   function scheduleNextFrame(delayMs) {
@@ -337,7 +341,7 @@ export default function App() {
     try {
       const context = canvasElement.getContext("2d");
       if (!context) {
-        throw new Error("Canvas 2D context is not available.");
+        throw new Error("2D-контекст canvas недоступен.");
       }
 
       canvasElement.width = processWidthRef.current;
@@ -351,7 +355,7 @@ export default function App() {
               resolve(blob);
               return;
             }
-            reject(new Error("Unable to encode camera frame."));
+            reject(new Error("Не удалось закодировать кадр с камеры."));
           },
           CAPTURE_MIME_TYPE,
           OUTPUT_FORMAT === "png" ? undefined : CAPTURE_QUALITY,
@@ -376,7 +380,7 @@ export default function App() {
       );
 
       if (!response.ok) {
-        throw new Error(`Upscale request failed with ${response.status}`);
+        throw new Error(`Запрос апскейлинга завершился кодом ${response.status}`);
       }
 
       const responseBlob = await response.blob();
@@ -402,11 +406,11 @@ export default function App() {
         setRoundTripMs(requestEndedAt - requestStartedAt);
         setProcessedFps(fpsTimestampsRef.current.length);
         setLastResolution(
-          outputWidth && outputHeight ? `${outputWidth}x${outputHeight}` : "n/a",
+          outputWidth && outputHeight ? `${outputWidth}x${outputHeight}` : "н/д",
         );
         setLastError("");
         setBackendStatus(
-          `Streaming via ${formatModelLabel(
+          `Поток через ${formatModelLabel(
             selectedModelIdRef.current,
             modelOptions,
           )}`,
@@ -415,7 +419,7 @@ export default function App() {
     } catch (error) {
       if (mountedRef.current) {
         setLastError(
-          error instanceof Error ? error.message : "Frame processing failed.",
+          error instanceof Error ? error.message : "Не удалось обработать кадр.",
         );
       }
     } finally {
@@ -430,8 +434,8 @@ export default function App() {
     <div className="page-shell">
       <header className="hero-bar">
         <div>
-          <p className="eyebrow">Project Practice</p>
-          <h1>Real-Time Super Resolution Console</h1>
+          <p className="eyebrow">Учебная практика</p>
+          <h1>Консоль повышения разрешения в реальном времени</h1>
         </div>
         <div className="control-row">
           <button
@@ -439,46 +443,46 @@ export default function App() {
             onClick={cameraActive ? stopCamera : startCamera}
             type="button"
           >
-            {cameraActive ? "Stop stream" : "Start camera"}
+            {cameraActive ? "Остановить поток" : "Запустить камеру"}
           </button>
         </div>
       </header>
 
       <section className="stats-grid">
         <article className="stat-card">
-          <span className="stat-label">Current FPS</span>
+          <span className="stat-label">Текущий FPS</span>
           <strong>{formatFps(processedFps)}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Input frame</span>
+          <span className="stat-label">Входной кадр</span>
           <strong>
             {processWidth}x{processHeight}
           </strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Previous processing</span>
+          <span className="stat-label">Последняя обработка</span>
           <strong>{formatMs(processingTimeMs)}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Round trip</span>
+          <span className="stat-label">Полный цикл</span>
           <strong>{formatMs(roundTripMs)}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Output frame</span>
+          <span className="stat-label">Выходной кадр</span>
           <strong>{lastResolution}</strong>
         </article>
       </section>
 
       <section className="settings-panel">
         <div className="settings-copy">
-          <span className="status-tag">Send Size</span>
+          <span className="status-tag">Размер отправки</span>
           <strong>
             {processWidth}x{processHeight}
           </strong>
-          <p>These values and the selected model are applied to the next frame.</p>
+          <p>Эти значения и выбранная модель применятся к следующему кадру.</p>
         </div>
         <label className="settings-field">
-          <span>Model</span>
+          <span>Модель</span>
           <select
             value={selectedModelId}
             onChange={(event) => setSelectedModelId(event.target.value)}
@@ -491,7 +495,7 @@ export default function App() {
           </select>
         </label>
         <label className="settings-field api-url-field">
-          <span>Backend URL</span>
+          <span>URL backend</span>
           <input
             type="url"
             value={apiBaseUrlInput}
@@ -505,7 +509,7 @@ export default function App() {
           />
         </label>
         <label className="settings-field">
-          <span>Width</span>
+          <span>Ширина</span>
           <input
             type="number"
             min={MIN_PROCESS_DIMENSION}
@@ -518,7 +522,7 @@ export default function App() {
           />
         </label>
         <label className="settings-field">
-          <span>Height</span>
+          <span>Высота</span>
           <input
             type="number"
             min={MIN_PROCESS_DIMENSION}
@@ -535,13 +539,13 @@ export default function App() {
           onClick={resetProcessSize}
           type="button"
         >
-          Reset
+          Сбросить
         </button>
       </section>
 
       <section className="status-strip">
         <div>
-          <span className="status-tag">Source</span>
+          <span className="status-tag">Источник</span>
           <span>{sourceStatus}</span>
         </div>
         <div>
@@ -549,11 +553,12 @@ export default function App() {
           <span>{backendStatus}</span>
         </div>
         <div>
-          <span className="status-tag">Preset</span>
+          <span className="status-tag">Параметры</span>
           <span>
-            {formatModelLabel(selectedModelId, modelOptions)}, camera {CAMERA_WIDTH}x
-            {CAMERA_HEIGHT}, process {processWidth}x{processHeight}, API{" "}
-            {apiBaseUrl}, adaptive max fps, x{UPSCALE_OUTSCALE}
+            {formatModelLabel(selectedModelId, modelOptions)}, камера{" "}
+            {CAMERA_WIDTH}x{CAMERA_HEIGHT}, обработка {processWidth}x
+            {processHeight}, API {apiBaseUrl}, адаптивный максимум FPS, x
+            {UPSCALE_OUTSCALE}
           </span>
         </div>
       </section>
@@ -563,8 +568,8 @@ export default function App() {
       <main className="frame-grid">
         <article className="frame-card">
           <div className="frame-head">
-            <span>Input camera</span>
-            <span>{cameraReady ? "live" : "waiting"}</span>
+            <span>Камера</span>
+            <span>{cameraReady ? "в эфире" : "ожидание"}</span>
           </div>
           <div className="frame-surface">
             <video
@@ -579,19 +584,19 @@ export default function App() {
 
         <article className="frame-card">
           <div className="frame-head">
-            <span>Upscaled output</span>
-            <span>{processedFrameUrl ? "receiving" : "waiting"}</span>
+            <span>Результат апскейлинга</span>
+            <span>{processedFrameUrl ? "получение" : "ожидание"}</span>
           </div>
           <div className="frame-surface">
             {processedFrameUrl ? (
               <img
-                alt="Upscaled frame"
+                alt="Кадр после апскейлинга"
                 className="frame-image"
                 src={processedFrameUrl}
               />
             ) : (
               <div className="frame-placeholder">
-                First processed frame will appear here.
+                Первый обработанный кадр появится здесь.
               </div>
             )}
           </div>
