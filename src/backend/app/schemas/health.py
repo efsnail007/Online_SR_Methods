@@ -31,6 +31,3 @@ class ModelInfoResponse(BaseModel):
     description: str | None
     tags: list[str]
     options: dict
-    requested_providers: list[str] | None = None
-    available_providers: list[str] | None = None
-    active_providers: list[str] | None = None

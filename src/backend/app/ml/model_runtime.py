@@ -184,9 +184,6 @@ class OnnxRuntime(BaseModelRuntime):
         super().__init__(config, settings)
         self.session: Any | None = None
         self.input_name: str | None = None
-        self.requested_providers: list[str] = []
-        self.available_providers: list[str] = []
-        self.active_providers: list[str] = []
 
     @property
     def loaded(self) -> bool:
@@ -213,23 +210,19 @@ class OnnxRuntime(BaseModelRuntime):
         providers = self.config.options.get("providers")
         if providers is None:
             providers = (
-                ["CUDAExecutionProvider", "CPUExecutionProvider"]
+                [
+                    (
+                        "CUDAExecutionProvider",
+                        {
+                            "device_id": 0,
+                            "cudnn_conv_algo_search": "HEURISTIC",
+                            "do_copy_in_default_stream": 1,
+                        },
+                    ),
+                    "CPUExecutionProvider",
+                ]
                 if self.device.type == "cuda"
                 else ["CPUExecutionProvider"]
-            )
-        self.requested_providers = list(providers)
-        self.available_providers = list(ort.get_available_providers())
-        missing_providers = [
-            provider
-            for provider in self.requested_providers
-            if provider != "CPUExecutionProvider"
-            and provider not in self.available_providers
-        ]
-        if missing_providers:
-            raise RuntimeError(
-                "Requested ONNX provider(s) are not available: "
-                f"{', '.join(missing_providers)}. "
-                "Install the CUDA extra and run the CUDA backend."
             )
         session_options = ort.SessionOptions()
         session_options.graph_optimization_level = (
@@ -238,35 +231,13 @@ class OnnxRuntime(BaseModelRuntime):
         self.session = ort.InferenceSession(
             str(self.config.weights_path),
             sess_options=session_options,
-            providers=self.requested_providers,
+            providers=providers,
         )
-        self.active_providers = list(self.session.get_providers())
-        if (
-            self.device.type == "cuda"
-            and "CUDAExecutionProvider" not in self.active_providers
-        ):
-            raise RuntimeError(
-                "ONNX session was created without CUDAExecutionProvider. "
-                f"Available providers: {self.available_providers}. "
-                f"Active providers: {self.active_providers}."
-            )
         self.input_name = self.session.get_inputs()[0].name
 
     def unload(self) -> None:
         self.session = None
         self.input_name = None
-        self.active_providers = []
-
-    def info(self) -> dict[str, Any]:
-        payload = super().info()
-        payload.update(
-            {
-                "requested_providers": self.requested_providers,
-                "available_providers": self.available_providers,
-                "active_providers": self.active_providers,
-            }
-        )
-        return payload
 
     def upscale(self, image_bgr: np.ndarray, outscale: float) -> RuntimeResult:
         self.load()
