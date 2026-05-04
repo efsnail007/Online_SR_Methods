@@ -214,6 +214,19 @@ class OnnxRuntime(BaseModelRuntime):
                 if self.device.type == "cuda"
                 else ["CPUExecutionProvider"]
             )
+        available_providers = ort.get_available_providers()
+        missing_providers = [
+            provider
+            for provider in providers
+            if provider != "CPUExecutionProvider"
+            and provider not in available_providers
+        ]
+        if missing_providers:
+            raise RuntimeError(
+                "Requested ONNX provider(s) are not available: "
+                f"{', '.join(missing_providers)}. "
+                "Install the CUDA ONNX Runtime package and run the CUDA backend."
+            )
         self.session = ort.InferenceSession(
             str(self.config.weights_path),
             providers=providers,

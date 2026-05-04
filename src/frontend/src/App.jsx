@@ -17,6 +17,11 @@ const MIN_PROCESS_DIMENSION = 16;
 const MAX_PROCESS_DIMENSION = 2048;
 const FALLBACK_MODEL_OPTIONS = [
   { id: "realesrgan_x4plus", name: "Real-ESRGAN x4plus", kind: "torch" },
+  {
+    id: "realesrgan_x4plus_onnx",
+    name: "Real-ESRGAN x4plus ONNX",
+    kind: "onnx",
+  },
   { id: "bicubic", name: "Bicubic", kind: "bicubic" },
 ];
 const FALLBACK_MODEL_ID = FALLBACK_MODEL_OPTIONS[0].id;

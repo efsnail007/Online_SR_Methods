@@ -159,6 +159,19 @@ class Settings:
                 tags=["torch", "real-esrgan"],
             ),
             ModelConfig(
+                id="realesrgan_x4plus_onnx",
+                name="RealESRGAN x4plus ONNX",
+                kind="onnx",
+                architecture="generic-nchw-rgb",
+                weights_path=BACKEND_DIR
+                / "assets"
+                / "weights"
+                / "RealESRGAN_x4plus.onnx",
+                scale=4.0,
+                description="Bundled Real-ESRGAN x4plus ONNX export.",
+                tags=["onnx", "real-esrgan"],
+            ),
+            ModelConfig(
                 id="bicubic",
                 name="Bicubic",
                 kind="bicubic",

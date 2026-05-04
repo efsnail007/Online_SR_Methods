@@ -67,6 +67,19 @@ def build_client_factory(
                         "options": {},
                     },
                     {
+                        "id": "realesrgan_x4plus_onnx",
+                        "name": "RealESRGAN x4plus ONNX",
+                        "kind": "onnx",
+                        "architecture": "generic-nchw-rgb",
+                        "loaded": False,
+                        "weights_path": "src/backend/assets/weights/RealESRGAN_x4plus.onnx",
+                        "device": "cpu",
+                        "scale": 4.0,
+                        "description": "Bundled Real-ESRGAN x4plus ONNX export.",
+                        "tags": ["onnx", "real-esrgan"],
+                        "options": {},
+                    },
+                    {
                         "id": "bicubic",
                         "name": "Bicubic",
                         "kind": "bicubic",
@@ -106,11 +119,19 @@ def build_client_factory(
                     output_height=int(8 * selected_outscale),
                     outscale=selected_outscale,
                     model_id=selected_model_id,
-                    model_kind="bicubic" if selected_model_id == "bicubic" else "torch",
+                    model_kind=(
+                        "bicubic"
+                        if selected_model_id == "bicubic"
+                        else "onnx"
+                        if selected_model_id == "realesrgan_x4plus_onnx"
+                        else "torch"
+                    ),
                     device="cpu",
                     model_name=(
                         self.settings.model_name
                         if selected_model_id == self.settings.default_model_id
+                        else "RealESRGAN x4plus ONNX"
+                        if selected_model_id == "realesrgan_x4plus_onnx"
                         else "Bicubic"
                     ),
                 )
@@ -140,11 +161,19 @@ def build_client_factory(
                     output_height=int(8 * selected_outscale),
                     outscale=selected_outscale,
                     model_id=selected_model_id,
-                    model_kind="bicubic" if selected_model_id == "bicubic" else "torch",
+                    model_kind=(
+                        "bicubic"
+                        if selected_model_id == "bicubic"
+                        else "onnx"
+                        if selected_model_id == "realesrgan_x4plus_onnx"
+                        else "torch"
+                    ),
                     device="cpu",
                     model_name=(
                         self.settings.model_name
                         if selected_model_id == self.settings.default_model_id
+                        else "RealESRGAN x4plus ONNX"
+                        if selected_model_id == "realesrgan_x4plus_onnx"
                         else "Bicubic"
                     ),
                 )
@@ -196,6 +225,7 @@ def test_models_endpoint_returns_available_models(
     assert payload["default_model_id"] == "realesrgan_x4plus"
     assert [model["id"] for model in payload["models"]] == [
         "realesrgan_x4plus",
+        "realesrgan_x4plus_onnx",
         "bicubic",
     ]
 

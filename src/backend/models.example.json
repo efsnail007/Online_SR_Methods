@@ -10,16 +10,13 @@
       "tags": ["torch", "real-esrgan"]
     },
     {
-      "id": "edsr_x4_onnx",
-      "name": "EDSR x4 ONNX",
+      "id": "realesrgan_x4plus_onnx",
+      "name": "RealESRGAN x4plus ONNX",
       "kind": "onnx",
       "architecture": "generic-nchw-rgb",
-      "weights_path": "src/backend/assets/weights/edsr_x4.onnx",
+      "weights_path": "src/backend/assets/weights/RealESRGAN_x4plus.onnx",
       "scale": 4,
-      "tags": ["onnx"],
-      "options": {
-        "providers": ["CPUExecutionProvider"]
-      }
+      "tags": ["onnx", "real-esrgan"]
     },
     {
       "id": "bicubic",

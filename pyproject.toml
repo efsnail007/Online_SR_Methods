@@ -18,13 +18,12 @@ dependencies = [
 cpu = [
     "torch (==2.11.0+cpu)",
     "torchvision (==0.26.0+cpu)",
+    "onnxruntime (>=1.23.0,<2.0.0)",
 ]
 cuda = [
     "torch (==2.11.0)",
     "torchvision (==0.26.0)",
-]
-onnx = [
-    "onnxruntime (>=1.23.0,<2.0.0)",
+    "onnxruntime-gpu (>=1.23.0,<2.0.0)",
 ]
 
 [tool.poetry]
