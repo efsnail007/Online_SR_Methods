@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: src/backend/Dockerfile.dev
+    env_file:
+      - .env
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    volumes:
+      - ./src/backend:/app/src/backend
+    command: >
+      sh -c 'if [ "$BACKEND_RELOAD" = "true" ]; then
+        uvicorn --app-dir /app/src/backend app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --reload;
+      else
+        uvicorn --app-dir /app/src/backend app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT";
+      fi'
+
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    volumes:
+      - ./src/frontend:/app/src/frontend
+      - frontend_node_modules:/app/src/frontend/node_modules
+    command: >
+      sh -c 'npm install &&
+        npm run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT"'
+
+volumes:
+  frontend_node_modules:

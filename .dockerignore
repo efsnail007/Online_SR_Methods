@@ -1,0 +1,15 @@
+.DS_Store
+.git
+.gitignore
+.idea
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+Efremov_P2kh_Zadanie.doc
+
+src/frontend
+src/backend
+src/backend/tests

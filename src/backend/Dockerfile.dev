@@ -1,0 +1,24 @@
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir \
+    fastapi==0.136.1 \
+    uvicorn==0.46.0 \
+    numpy==2.4.4 \
+    pillow==12.2.0 \
+    opencv-python-headless==4.13.0.92 && \
+    pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch==2.11.0+cpu \
+    torchvision==0.26.0+cpu
+
+RUN mkdir -p /app/src/backend
+
+EXPOSE 8000
+
+CMD ["uvicorn", "--app-dir", "/app/src/backend", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,9 @@
+#!/bin/zsh
+
+git add -A
+git commit -m "job"
+
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/snail_git
+
+git push

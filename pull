@@ -1,0 +1,7 @@
+#!/bin/zsh
+
+
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/snail_git
+
+git pull
