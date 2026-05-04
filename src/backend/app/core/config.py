@@ -159,17 +159,14 @@ class Settings:
                 tags=["torch", "real-esrgan"],
             ),
             ModelConfig(
-                id="realesrgan_x4plus_onnx",
-                name="RealESRGAN x4plus ONNX",
-                kind="onnx",
-                architecture="generic-nchw-rgb",
-                weights_path=BACKEND_DIR
-                / "assets"
-                / "weights"
-                / "RealESRGAN_x4plus.onnx",
+                id="srcnn_rgb",
+                name="SRCNN RGB",
+                kind="torch",
+                architecture="srcnn_rgb",
+                weights_path=BACKEND_DIR / "assets" / "weights" / "srcnn_rgb_best.pth",
                 scale=4.0,
-                description="Bundled Real-ESRGAN x4plus ONNX export.",
-                tags=["onnx", "real-esrgan"],
+                description="SRCNN x4 model trained on all RGB channels.",
+                tags=["torch", "srcnn", "rgb"],
             ),
             ModelConfig(
                 id="bicubic",
@@ -177,8 +174,8 @@ class Settings:
                 kind="bicubic",
                 architecture="bicubic",
                 scale=1.0,
-                description="Built-in bicubic baseline.",
-                tags=["builtin"],
+                description="Built-in bicubic RGB baseline.",
+                tags=["builtin", "rgb"],
             ),
         ]
         catalog_models = load_model_catalog(model_catalog_path)

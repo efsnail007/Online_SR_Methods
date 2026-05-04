@@ -10,13 +10,13 @@
       "tags": ["torch", "real-esrgan"]
     },
     {
-      "id": "realesrgan_x4plus_onnx",
-      "name": "RealESRGAN x4plus ONNX",
-      "kind": "onnx",
-      "architecture": "generic-nchw-rgb",
-      "weights_path": "src/backend/assets/weights/RealESRGAN_x4plus.onnx",
+      "id": "srcnn_rgb",
+      "name": "SRCNN RGB",
+      "kind": "torch",
+      "architecture": "srcnn_rgb",
+      "weights_path": "src/backend/assets/weights/srcnn_rgb_best.pth",
       "scale": 4,
-      "tags": ["onnx", "real-esrgan"]
+      "tags": ["torch", "srcnn", "rgb"]
     },
     {
       "id": "bicubic",
@@ -24,7 +24,7 @@
       "kind": "bicubic",
       "architecture": "bicubic",
       "scale": 1,
-      "tags": ["builtin"]
+      "tags": ["builtin", "rgb"]
     }
   ]
 }

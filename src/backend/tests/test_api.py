@@ -12,6 +12,22 @@ def build_client_factory(
     monkeypatch,
     image_bytes: bytes,
 ) -> Callable[..., TestClient]:
+    def model_kind_for(model_id: str, default_model_id: str) -> str:
+        if model_id == "bicubic":
+            return "bicubic"
+        if model_id in {default_model_id, "srcnn_rgb"}:
+            return "torch"
+        raise ValueError(f"Unexpected test model_id: {model_id}")
+
+    def model_name_for(model_id: str, default_model_id: str, default_name: str) -> str:
+        if model_id == default_model_id:
+            return default_name
+        if model_id == "srcnn_rgb":
+            return "SRCNN RGB"
+        if model_id == "bicubic":
+            return "Bicubic"
+        raise ValueError(f"Unexpected test model_id: {model_id}")
+
     def _factory(
         *,
         raw_error: Exception | None = None,
@@ -67,16 +83,16 @@ def build_client_factory(
                         "options": {},
                     },
                     {
-                        "id": "realesrgan_x4plus_onnx",
-                        "name": "RealESRGAN x4plus ONNX",
-                        "kind": "onnx",
-                        "architecture": "generic-nchw-rgb",
+                        "id": "srcnn_rgb",
+                        "name": "SRCNN RGB",
+                        "kind": "torch",
+                        "architecture": "srcnn_rgb",
                         "loaded": False,
-                        "weights_path": "src/backend/assets/weights/RealESRGAN_x4plus.onnx",
+                        "weights_path": "src/backend/assets/weights/srcnn_rgb_best.pth",
                         "device": "cpu",
                         "scale": 4.0,
-                        "description": "Bundled Real-ESRGAN x4plus ONNX export.",
-                        "tags": ["onnx", "real-esrgan"],
+                        "description": "SRCNN x4 model trained on all RGB channels.",
+                        "tags": ["torch", "srcnn", "rgb"],
                         "options": {},
                     },
                     {
@@ -89,7 +105,7 @@ def build_client_factory(
                         "device": "cpu",
                         "scale": 1.0,
                         "description": None,
-                        "tags": [],
+                        "tags": ["rgb"],
                         "options": {},
                     },
                 ]
@@ -119,20 +135,15 @@ def build_client_factory(
                     output_height=int(8 * selected_outscale),
                     outscale=selected_outscale,
                     model_id=selected_model_id,
-                    model_kind=(
-                        "bicubic"
-                        if selected_model_id == "bicubic"
-                        else "onnx"
-                        if selected_model_id == "realesrgan_x4plus_onnx"
-                        else "torch"
+                    model_kind=model_kind_for(
+                        selected_model_id,
+                        self.settings.default_model_id,
                     ),
                     device="cpu",
-                    model_name=(
+                    model_name=model_name_for(
+                        selected_model_id,
+                        self.settings.default_model_id,
                         self.settings.model_name
-                        if selected_model_id == self.settings.default_model_id
-                        else "RealESRGAN x4plus ONNX"
-                        if selected_model_id == "realesrgan_x4plus_onnx"
-                        else "Bicubic"
                     ),
                 )
 
@@ -161,20 +172,15 @@ def build_client_factory(
                     output_height=int(8 * selected_outscale),
                     outscale=selected_outscale,
                     model_id=selected_model_id,
-                    model_kind=(
-                        "bicubic"
-                        if selected_model_id == "bicubic"
-                        else "onnx"
-                        if selected_model_id == "realesrgan_x4plus_onnx"
-                        else "torch"
+                    model_kind=model_kind_for(
+                        selected_model_id,
+                        self.settings.default_model_id,
                     ),
                     device="cpu",
-                    model_name=(
+                    model_name=model_name_for(
+                        selected_model_id,
+                        self.settings.default_model_id,
                         self.settings.model_name
-                        if selected_model_id == self.settings.default_model_id
-                        else "RealESRGAN x4plus ONNX"
-                        if selected_model_id == "realesrgan_x4plus_onnx"
-                        else "Bicubic"
                     ),
                 )
 
@@ -225,7 +231,7 @@ def test_models_endpoint_returns_available_models(
     assert payload["default_model_id"] == "realesrgan_x4plus"
     assert [model["id"] for model in payload["models"]] == [
         "realesrgan_x4plus",
-        "realesrgan_x4plus_onnx",
+        "srcnn_rgb",
         "bicubic",
     ]
 

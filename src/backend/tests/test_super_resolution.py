@@ -36,6 +36,14 @@ def service_settings(tmp_path: Path) -> Settings:
                 scale=4.0,
             ),
             ModelConfig(
+                id="srcnn_rgb",
+                name="SRCNN RGB",
+                kind="torch",
+                architecture="srcnn_rgb",
+                weights_path=tmp_path / "srcnn_rgb_best.pth",
+                scale=4.0,
+            ),
+            ModelConfig(
                 id="bicubic",
                 name="Bicubic",
                 kind="bicubic",
@@ -222,3 +230,53 @@ def test_process_image_supports_bicubic_without_loaded_model(
     assert result.outscale == 2.0
     assert result.model_id == "bicubic"
     assert result.model_name == "Bicubic"
+
+
+def test_process_image_supports_srcnn_model(
+    monkeypatch,
+    service_settings: Settings,
+    sample_image,
+) -> None:
+    service = SuperResolutionService(service_settings)
+
+    class FakeRuntime:
+        config = ModelConfig(
+            id="srcnn_rgb",
+            name="SRCNN RGB",
+            kind="torch",
+            architecture="srcnn_rgb",
+            scale=4.0,
+        )
+        device = "cpu"
+
+        def upscale(self, image_bgr, outscale):
+            assert image_bgr.shape == (8, 8, 3)
+            assert outscale == 4.0
+            return RuntimeResult(np.full((32, 32, 3), 96, dtype=np.uint8), 9.0)
+
+    def fake_get_runtime(model_id):
+        assert model_id == "srcnn_rgb"
+        return FakeRuntime()
+
+    monkeypatch.setattr(service.registry, "get_runtime", fake_get_runtime)
+    monkeypatch.setattr(
+        "app.services.super_resolution.encode_image_bytes",
+        lambda image_bgr, output_format, jpeg_quality, png_compression: (
+            b"srcnn-image",
+            "image/png",
+        ),
+    )
+
+    result = service.process_image(
+        sample_image,
+        model_id="srcnn_rgb",
+        output_format="png",
+    )
+
+    assert result.image_bytes == b"srcnn-image"
+    assert result.content_type == "image/png"
+    assert result.inference_time_ms == 9.0
+    assert result.output_width == 32
+    assert result.output_height == 32
+    assert result.model_id == "srcnn_rgb"
+    assert result.model_name == "SRCNN RGB"

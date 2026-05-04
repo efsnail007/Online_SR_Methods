@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from app.core.config import ModelConfig, Settings
 from app.ml.bicubic import run_bicubic_upscale
 from app.ml.realesrgan import MODEL_SCALE, RRDBNet, load_realesrgan_x4plus
+from app.ml.srcnn import SRCNN, SRCNN_MODEL_SCALE, load_srcnn_rgb
 
 
 @dataclass(slots=True)
@@ -179,96 +180,128 @@ class RealESRGANTorchRuntime(BaseModelRuntime):
         return output_bgr_u8, elapsed_ms
 
 
-class OnnxRuntime(BaseModelRuntime):
+class SRCNNRuntime(BaseModelRuntime):
     def __init__(self, config: ModelConfig, settings: Settings) -> None:
         super().__init__(config, settings)
-        self.session: Any | None = None
-        self.input_name: str | None = None
+        self.use_half = settings.use_half and self.device.type == "cuda"
+        self.use_channels_last = (
+            settings.use_channels_last and self.device.type == "cuda"
+        )
+        self.model: SRCNN | None = None
+        self.metadata: dict[str, Any] = {}
 
     @property
     def loaded(self) -> bool:
-        return self.session is not None
+        return self.model is not None
 
     def load(self) -> None:
-        if self.session is not None:
+        if self.model is not None:
             return
         if self.config.weights_path is None:
             raise FileNotFoundError(
-                f"ONNX model path is not configured: {self.config.id}"
+                f"Model weights path is not configured: {self.config.id}"
             )
         if not self.config.weights_path.exists():
             raise FileNotFoundError(
-                f"ONNX model not found: {self.config.weights_path}"
+                f"Model weights not found: {self.config.weights_path}"
             )
-        try:
-            import onnxruntime as ort
-        except ImportError as exc:
-            raise RuntimeError(
-                "onnxruntime is required for ONNX models. Install the CPU or CUDA extra."
-            ) from exc
-
-        providers = self.config.options.get("providers")
-        if providers is None:
-            providers = (
-                [
-                    (
-                        "CUDAExecutionProvider",
-                        {
-                            "device_id": 0,
-                            "cudnn_conv_algo_search": "HEURISTIC",
-                            "do_copy_in_default_stream": 1,
-                        },
-                    ),
-                    "CPUExecutionProvider",
-                ]
-                if self.device.type == "cuda"
-                else ["CPUExecutionProvider"]
-            )
-        session_options = ort.SessionOptions()
-        session_options.graph_optimization_level = (
-            ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        self.model, self.metadata = load_srcnn_rgb(
+            weights_path=self.config.weights_path,
+            device=self.device,
+            use_half=self.use_half,
+            use_channels_last=self.use_channels_last,
         )
-        self.session = ort.InferenceSession(
-            str(self.config.weights_path),
-            sess_options=session_options,
-            providers=providers,
-        )
-        self.input_name = self.session.get_inputs()[0].name
 
     def unload(self) -> None:
-        self.session = None
-        self.input_name = None
+        self.model = None
+        self.metadata = {}
+        if self.device.type == "cuda":
+            torch.cuda.empty_cache()
 
     def upscale(self, image_bgr: np.ndarray, outscale: float) -> RuntimeResult:
         self.load()
         with self._lock:
-            return self._run_inference(image_bgr, outscale)
+            output_bgr, inference_time_ms = self._run_inference(image_bgr, outscale)
+        return RuntimeResult(output_bgr, inference_time_ms)
 
-    def _run_inference(self, image_bgr: np.ndarray, outscale: float) -> RuntimeResult:
-        if self.session is None or self.input_name is None:
+    def info(self) -> dict[str, Any]:
+        payload = super().info()
+        payload.update(
+            {
+                "checkpoint_key": self.metadata.get("checkpoint_key"),
+                "use_half": self.use_half,
+                "use_channels_last": self.use_channels_last,
+                "network_scale": self.metadata.get("network_scale", SRCNN_MODEL_SCALE),
+                "predict_residual": self.metadata.get("predict_residual", True),
+                "runtime_color_space": "RGB",
+            }
+        )
+        return payload
+
+    @torch.inference_mode()
+    def _run_inference(
+        self,
+        image_bgr: np.ndarray,
+        outscale: float,
+    ) -> tuple[np.ndarray, float]:
+        if self.model is None:
             raise RuntimeError(f"Model is not loaded: {self.config.id}")
+
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
         start_time = time.perf_counter()
-        image_rgb = image_bgr[:, :, ::-1].astype(np.float32) / 255.0
-        input_tensor = np.transpose(image_rgb, (2, 0, 1))[None, ...]
-        outputs = self.session.run(None, {self.input_name: input_tensor})
-        output = np.asarray(outputs[0])
-        if output.ndim == 4:
-            output = output[0]
-        if output.shape[0] in {1, 3}:
-            output = np.transpose(output, (1, 2, 0))
-        if output.shape[2] == 1:
-            output = np.repeat(output, 3, axis=2)
-        output_bgr = np.clip(output[:, :, ::-1], 0.0, 1.0)
-        model_scale = self.config.scale
-        if model_scale and outscale != float(model_scale):
-            target_hw = (
-                max(1, int(round(image_bgr.shape[0] * outscale))),
-                max(1, int(round(image_bgr.shape[1] * outscale))),
-            )
-            output_bgr = torch_resize_bgr(output_bgr, target_hw)
-        output_bgr_u8 = np.clip(np.round(output_bgr * 255.0), 0, 255).astype(np.uint8)
+
+        image_tensor = torch.from_numpy(image_bgr).to(self.device, dtype=torch.float32)
+        image_tensor = image_tensor.permute(2, 0, 1).unsqueeze(0)
+        image_tensor = image_tensor[:, [2, 1, 0], :, :] / 255.0
+
+        input_height, input_width = image_bgr.shape[:2]
+        model_scale = float(self.config.scale or SRCNN_MODEL_SCALE)
+        target_hw = (
+            max(1, int(round(input_height * model_scale))),
+            max(1, int(round(input_width * model_scale))),
+        )
+        input_tensor = F.interpolate(
+            image_tensor,
+            size=target_hw,
+            mode="bicubic",
+            align_corners=False,
+        )
+
+        if self.use_channels_last:
+            input_tensor = input_tensor.contiguous(memory_format=torch.channels_last)
+        if self.use_half:
+            input_tensor = input_tensor.half()
+
+        output = self.model(input_tensor)
+        if self.metadata.get("predict_residual", True):
+            output = input_tensor + output
+        output = output.clamp_(0.0, 1.0)
+
+        if outscale != model_scale:
+            output = F.interpolate(
+                output,
+                scale_factor=outscale / model_scale,
+                mode="bicubic",
+                align_corners=False,
+            ).clamp_(0.0, 1.0)
+
+        output_bgr = output[:, [2, 1, 0], :, :].float() * 255.0
+        output_bgr_u8 = (
+            output_bgr.squeeze(0)
+            .permute(1, 2, 0)
+            .contiguous()
+            .round()
+            .clamp_(0.0, 255.0)
+            .to(torch.uint8)
+            .cpu()
+            .numpy()
+        )
+
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
         elapsed_ms = float((time.perf_counter() - start_time) * 1000.0)
-        return RuntimeResult(output_bgr_u8, elapsed_ms)
+        return output_bgr_u8, elapsed_ms
 
 
 class UnsupportedRuntime(BaseModelRuntime):
@@ -296,15 +329,6 @@ def resolve_device(model_device: str) -> torch.device:
     raise ValueError("BACKEND_MODEL_DEVICE must be one of: auto, cpu, cuda.")
 
 
-def torch_resize_bgr(
-    image_bgr_float: np.ndarray,
-    target_hw: tuple[int, int],
-) -> np.ndarray:
-    tensor = torch.from_numpy(image_bgr_float).permute(2, 0, 1).unsqueeze(0)
-    output = F.interpolate(tensor, size=target_hw, mode="bicubic", align_corners=False)
-    return output.squeeze(0).permute(1, 2, 0).clamp_(0.0, 1.0).numpy()
-
-
 def create_runtime(config: ModelConfig, settings: Settings) -> BaseModelRuntime:
     kind = config.kind.lower()
     architecture = (config.architecture or "").lower()
@@ -312,6 +336,6 @@ def create_runtime(config: ModelConfig, settings: Settings) -> BaseModelRuntime:
         return BicubicRuntime(config, settings)
     if kind == "torch" and architecture == "realesrgan_x4plus":
         return RealESRGANTorchRuntime(config, settings)
-    if kind == "onnx":
-        return OnnxRuntime(config, settings)
+    if kind == "torch" and architecture == "srcnn_rgb":
+        return SRCNNRuntime(config, settings)
     return UnsupportedRuntime(config, settings)

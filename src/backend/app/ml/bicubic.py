@@ -19,32 +19,6 @@ def _torch_to_bgr_u8(image_bgr: torch.Tensor) -> np.ndarray:
     return torch.clamp(image, 0.0, 255.0).to(torch.uint8).cpu().numpy()
 
 
-def _bgr_to_y_torch(image_bgr: torch.Tensor) -> torch.Tensor:
-    blue = image_bgr[:, 0:1]
-    green = image_bgr[:, 1:2]
-    red = image_bgr[:, 2:3]
-    return 0.114 * blue + 0.587 * green + 0.299 * red
-
-
-def _bgr_to_ycrcb_torch(image_bgr: torch.Tensor) -> torch.Tensor:
-    y = _bgr_to_y_torch(image_bgr)
-    blue = image_bgr[:, 0:1]
-    red = image_bgr[:, 2:3]
-    cr = (red - y) * 0.713 + 128.0
-    cb = (blue - y) * 0.564 + 128.0
-    return torch.cat([y, cr, cb], dim=1)
-
-
-def _ycrcb_to_bgr_torch(image_ycrcb: torch.Tensor) -> torch.Tensor:
-    y = image_ycrcb[:, 0:1]
-    cr = image_ycrcb[:, 1:2] - 128.0
-    cb = image_ycrcb[:, 2:3] - 128.0
-    red = y + 1.403 * cr
-    blue = y + 1.773 * cb
-    green = y - 0.714 * cr - 0.344 * cb
-    return torch.cat([blue, green, red], dim=1)
-
-
 @torch.inference_mode()
 def run_bicubic_upscale(
     image_bgr_u8: np.ndarray,
@@ -63,24 +37,13 @@ def run_bicubic_upscale(
     target_width = max(1, int(round(input_width * outscale)))
     target_hw = (target_height, target_width)
 
-    lr = _bgr_u8_to_torch(image_bgr_u8, device)
-    y_lr = _bgr_to_y_torch(lr)
-    y_sr = F.interpolate(
-        y_lr,
+    lr_bgr = _bgr_u8_to_torch(image_bgr_u8, device)
+    sr_bgr = F.interpolate(
+        lr_bgr,
         size=target_hw,
         mode="bicubic",
         align_corners=False,
     )
-
-    lr_up = F.interpolate(
-        lr,
-        size=target_hw,
-        mode="bicubic",
-        align_corners=False,
-    )
-    ycrcb = _bgr_to_ycrcb_torch(lr_up)
-    ycrcb[:, 0:1] = torch.clamp(y_sr, 0.0, 255.0)
-    sr_bgr = _ycrcb_to_bgr_torch(ycrcb)
     sr_bgr_u8 = _torch_to_bgr_u8(sr_bgr)
 
     if device.type == "cuda":

@@ -67,18 +67,13 @@ BACKEND_MODEL_WEIGHTS_PATH=src/backend/assets/weights/RealESRGAN_x4plus.pth
 Если `BACKEND_MODEL_CATALOG_PATH` не задан, backend автоматически регистрирует:
 
 - `realesrgan_x4plus` - PyTorch Real-ESRGAN x4plus;
-- `realesrgan_x4plus_onnx` - ONNX Real-ESRGAN x4plus;
-- `bicubic` - встроенный baseline без весов.
+- `srcnn_rgb` - SRCNN x4 по трем RGB-каналам;
+- `bicubic` - встроенный RGB baseline без весов.
 
 Пример каталога лежит в `src/backend/models.example.json`.
-ONNX-вариант по умолчанию ожидает файл:
-
-```text
-src/backend/assets/weights/RealESRGAN_x4plus.onnx
-```
-
 Чтобы подключить другие модели, скопируйте пример в `src/backend/models.json`,
 укажите путь к весам и включите переменную `BACKEND_MODEL_CATALOG_PATH`.
+Все встроенные методы обрабатывают все три цветовых канала, без выделения Y-канала.
 Платформенный extra включает все runtime для всех методов апскейлинга:
 
 ```powershell
@@ -88,10 +83,9 @@ poetry install --extras cuda
 
 Поддерживаемые `kind`:
 
-- `bicubic` - встроенный bicubic runtime;
-- `torch` с `architecture=realesrgan_x4plus` - текущая PyTorch-модель;
-- `onnx` - generic NCHW RGB runtime. В CPU backend используется `onnxruntime`,
-  в CUDA backend - `onnxruntime-gpu` и `CUDAExecutionProvider`.
+- `bicubic` - встроенный bicubic RGB runtime;
+- `torch` с `architecture=realesrgan_x4plus` - PyTorch Real-ESRGAN RGB-модель;
+- `torch` с `architecture=srcnn_rgb` - PyTorch SRCNN RGB-модель.
 
 Новые форматы добавляются отдельным runtime-классом в
 `src/backend/app/ml/model_runtime.py` и одной веткой в `create_runtime`.
