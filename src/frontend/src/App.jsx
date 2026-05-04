@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1"
-).replace(/\/$/, "");
+const DEFAULT_API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const API_URL_STORAGE_KEY = "realesrgan.apiBaseUrl";
 const CAMERA_WIDTH = Number(import.meta.env.VITE_CAMERA_WIDTH ?? 640);
 const CAMERA_HEIGHT = Number(import.meta.env.VITE_CAMERA_HEIGHT ?? 360);
 const DEFAULT_PROCESS_WIDTH = Number(import.meta.env.VITE_PROCESS_WIDTH ?? 96);
@@ -19,6 +19,36 @@ const UPSCALE_METHOD_OPTIONS = [
   { value: "bicubic", label: "Bicubic" },
 ];
 const DEFAULT_UPSCALE_METHOD = UPSCALE_METHOD_OPTIONS[0].value;
+
+function normalizeApiBaseUrl(value) {
+  return value.trim().replace(/\/$/, "");
+}
+
+function readStoredApiBaseUrl() {
+  try {
+    return window.localStorage.getItem(API_URL_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredApiBaseUrl(value) {
+  try {
+    window.localStorage.setItem(API_URL_STORAGE_KEY, value);
+  } catch {
+    // The app can still use the value for the current session.
+  }
+}
+
+function getInitialApiBaseUrl() {
+  const query = new URLSearchParams(window.location.search);
+  return normalizeApiBaseUrl(
+    query.get("api") ??
+      query.get("apiBaseUrl") ??
+      readStoredApiBaseUrl() ??
+      DEFAULT_API_BASE_URL,
+  );
+}
 
 function formatMs(value) {
   return value == null ? "n/a" : `${value.toFixed(1)} ms`;
@@ -55,10 +85,13 @@ export default function App() {
   const lastFrameUrlRef = useRef(null);
   const fpsTimestampsRef = useRef([]);
   const mountedRef = useRef(true);
+  const apiBaseUrlRef = useRef(getInitialApiBaseUrl());
   const processWidthRef = useRef(DEFAULT_PROCESS_WIDTH);
   const processHeightRef = useRef(DEFAULT_PROCESS_HEIGHT);
   const upscaleMethodRef = useRef(DEFAULT_UPSCALE_METHOD);
 
+  const [apiBaseUrl, setApiBaseUrl] = useState(apiBaseUrlRef.current);
+  const [apiBaseUrlInput, setApiBaseUrlInput] = useState(apiBaseUrlRef.current);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [sourceStatus, setSourceStatus] = useState("Idle");
@@ -99,6 +132,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    apiBaseUrlRef.current = apiBaseUrl;
+  }, [apiBaseUrl]);
+
+  useEffect(() => {
     processWidthRef.current = processWidth;
   }, [processWidth]);
 
@@ -110,9 +147,9 @@ export default function App() {
     upscaleMethodRef.current = upscaleMethod;
   }, [upscaleMethod]);
 
-  async function checkBackendHealth() {
+  async function checkBackendHealth(baseUrl = apiBaseUrlRef.current) {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
+      const response = await fetch(`${baseUrl}/health`);
       if (!response.ok) {
         throw new Error(`Backend responded with ${response.status}`);
       }
@@ -127,6 +164,18 @@ export default function App() {
         );
       }
     }
+  }
+
+  function commitApiBaseUrl() {
+    const nextApiBaseUrl = normalizeApiBaseUrl(
+      apiBaseUrlInput || DEFAULT_API_BASE_URL,
+    );
+    apiBaseUrlRef.current = nextApiBaseUrl;
+    setApiBaseUrl(nextApiBaseUrl);
+    setApiBaseUrlInput(nextApiBaseUrl);
+    writeStoredApiBaseUrl(nextApiBaseUrl);
+    setBackendStatus("Checking backend...");
+    void checkBackendHealth(nextApiBaseUrl);
   }
 
   function stopCameraTracks() {
@@ -271,7 +320,7 @@ export default function App() {
         method: upscaleMethodRef.current,
       });
       const response = await fetch(
-        `${API_BASE_URL}/upscale?${requestQuery.toString()}`,
+        `${apiBaseUrlRef.current}/upscale?${requestQuery.toString()}`,
         {
           method: "POST",
           headers: {
@@ -393,6 +442,20 @@ export default function App() {
             ))}
           </select>
         </label>
+        <label className="settings-field api-url-field">
+          <span>Backend URL</span>
+          <input
+            type="url"
+            value={apiBaseUrlInput}
+            onChange={(event) => setApiBaseUrlInput(event.target.value)}
+            onBlur={commitApiBaseUrl}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.currentTarget.blur();
+              }
+            }}
+          />
+        </label>
         <label className="settings-field">
           <span>Width</span>
           <input
@@ -441,8 +504,8 @@ export default function App() {
           <span className="status-tag">Preset</span>
           <span>
             {formatMethodLabel(upscaleMethod)}, camera {CAMERA_WIDTH}×
-            {CAMERA_HEIGHT}, process {processWidth}×{processHeight}, adaptive
-            max fps, x{UPSCALE_OUTSCALE}
+            {CAMERA_HEIGHT}, process {processWidth}×{processHeight}, API{" "}
+            {apiBaseUrl}, adaptive max fps, x{UPSCALE_OUTSCALE}
           </span>
         </div>
       </section>

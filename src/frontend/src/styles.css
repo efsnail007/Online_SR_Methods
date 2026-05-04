@@ -157,6 +157,10 @@ body {
   gap: 6px;
 }
 
+.status-strip span {
+  overflow-wrap: anywhere;
+}
+
 .status-tag {
   color: #7e503b;
   font-size: 0.78rem;
@@ -168,8 +172,10 @@ body {
 .settings-panel {
   display: grid;
   grid-template-columns:
-    minmax(0, 1.2fr)
-    repeat(3, minmax(140px, 180px))
+    minmax(0, 1fr)
+    minmax(140px, 180px)
+    minmax(260px, 1.35fr)
+    repeat(2, minmax(120px, 160px))
     auto;
   align-items: end;
   gap: 16px;
@@ -226,6 +232,13 @@ body {
 .settings-field select:focus {
   outline: 2px solid rgba(240, 90, 40, 0.24);
   border-color: rgba(240, 90, 40, 0.42);
+}
+
+.api-url-field input {
+  font-family:
+    "IBM Plex Mono",
+    monospace;
+  font-size: 0.9rem;
 }
 
 .error-banner {
@@ -302,5 +315,16 @@ body {
 
   .hero-bar {
     display: grid;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 961px) {
+  .settings-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-copy,
+  .api-url-field {
+    grid-column: 1 / -1;
   }
 }

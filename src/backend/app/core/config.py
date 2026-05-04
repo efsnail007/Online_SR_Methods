@@ -37,6 +37,7 @@ class Settings:
     reload: bool
     api_prefix: str
     cors_origins: list[str]
+    cors_origin_regex: str | None
     model_name: str
     model_weights_path: Path
     model_device: str
@@ -62,6 +63,7 @@ class Settings:
             reload=parse_bool(os.getenv("BACKEND_RELOAD"), False),
             api_prefix=os.getenv("BACKEND_API_PREFIX", "/api/v1"),
             cors_origins=parse_csv(os.getenv("BACKEND_CORS_ORIGINS")),
+            cors_origin_regex=os.getenv("BACKEND_CORS_ORIGIN_REGEX") or None,
             model_name=os.getenv("BACKEND_MODEL_NAME", "RealESRGAN_x4plus"),
             model_weights_path=resolve_project_path(
                 os.getenv("BACKEND_MODEL_WEIGHTS_PATH"),
