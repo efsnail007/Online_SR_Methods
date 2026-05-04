@@ -7,14 +7,49 @@ authors = [
 ]
 requires-python = ">=3.13,<3.14.1"
 dependencies = [
-    "opencv-python-headless (>=4.13.0.92,<5.0.0.0)",
-    "torch (>=2.11.0,<3.0.0)",
-    "torchvision (>=0.26.0,<0.27.0)",
-    "pip (>=26.1,<27.0)",
     "fastapi (>=0.136.1,<0.137.0)",
-    "uvicorn (>=0.46.0,<0.47.0)"
+    "numpy (>=2.4.4,<3.0.0)",
+    "opencv-python-headless (>=4.13.0.92,<5.0.0.0)",
+    "pillow (>=12.2.0,<13.0.0)",
+    "uvicorn (>=0.46.0,<0.47.0)",
 ]
 
+[project.optional-dependencies]
+cpu = [
+    "torch (==2.11.0+cpu)",
+    "torchvision (==0.26.0+cpu)",
+]
+cuda = [
+    "torch (==2.11.0)",
+    "torchvision (==0.26.0)",
+]
+onnx = [
+    "onnxruntime (>=1.23.0,<2.0.0)",
+]
+
+[tool.poetry]
+package-mode = false
+requires-poetry = ">=2.3"
+
+[tool.poetry.dependencies]
+torch = [
+    {markers = "extra == 'cpu' and extra != 'cuda'", source = "pytorch-cpu"},
+    {markers = "extra == 'cuda' and extra != 'cpu'", source = "pytorch-cuda"},
+]
+torchvision = [
+    {markers = "extra == 'cpu' and extra != 'cuda'", source = "pytorch-cpu"},
+    {markers = "extra == 'cuda' and extra != 'cpu'", source = "pytorch-cuda"},
+]
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[[tool.poetry.source]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu128"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

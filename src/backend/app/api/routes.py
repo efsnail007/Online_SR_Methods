@@ -7,7 +7,7 @@ from app.schemas.health import HealthResponse, ModelInfoResponse
 from app.schemas.inference import (
     Base64UpscaleRequest,
     Base64UpscaleResponse,
-    UpscaleMethod,
+    ModelsResponse,
 )
 from app.services.image_codec import bytes_to_base64
 from app.services.super_resolution import EncodedImageResult, SuperResolutionService
@@ -36,7 +36,8 @@ def build_base64_response(result: EncodedImageResult) -> Base64UpscaleResponse:
         output_width=result.output_width,
         output_height=result.output_height,
         outscale=result.outscale,
-        method=result.method,
+        model_id=result.model_id,
+        model_kind=result.model_kind,
         device=result.device,
         model_name=result.model_name,
     )
@@ -55,16 +56,33 @@ async def health(request: Request) -> HealthResponse:
         status="ok",
         app_name=request.app.title,
         model_loaded=model_info["model_loaded"],
+        model_id=model_info["model_id"],
         model_name=model_info["model_name"],
+        model_kind=model_info["model_kind"],
         device=model_info["device"],
         weights_path=model_info["weights_path"],
     )
 
 
 @router.get("/model", response_model=ModelInfoResponse, tags=["model"])
-async def model_info(request: Request) -> ModelInfoResponse:
+async def model_info(
+    request: Request,
+    model_id: str | None = Query(default=None),
+) -> ModelInfoResponse:
     service = get_service(request)
-    return ModelInfoResponse.model_validate(service.model_info())
+    try:
+        return ModelInfoResponse.model_validate(service.model_info(model_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/models", response_model=ModelsResponse, tags=["model"])
+async def models(request: Request) -> ModelsResponse:
+    service = get_service(request)
+    return ModelsResponse(
+        default_model_id=service.settings.default_model_id,
+        models=service.models_info(),
+    )
 
 
 @router.post(
@@ -81,7 +99,7 @@ async def upscale_base64(
                 service.process_base64_image,
                 payload.image_base64,
                 payload.outscale,
-                payload.method,
+                payload.model_id,
                 payload.output_format,
                 payload.jpeg_quality,
                 payload.png_compression,
@@ -89,6 +107,8 @@ async def upscale_base64(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return build_base64_response(result)
@@ -102,7 +122,7 @@ async def upscale_base64(
 async def upscale_raw(
     request: Request,
     outscale: float | None = Query(default=None, gt=0.0, le=8.0),
-    method: UpscaleMethod | None = Query(default=None),
+    model_id: str | None = Query(default=None),
     output_format: Literal["jpeg", "jpg", "png"] | None = Query(default=None),
     jpeg_quality: int | None = Query(default=None, ge=1, le=100),
     png_compression: int | None = Query(default=None, ge=0, le=9),
@@ -115,7 +135,7 @@ async def upscale_raw(
                 service.process_raw_image,
                 payload,
                 outscale,
-                method,
+                model_id,
                 output_format,
                 jpeg_quality,
                 png_compression,
@@ -123,15 +143,18 @@ async def upscale_raw(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     headers = {
         "X-Inference-Time-Ms": f"{result.inference_time_ms:.3f}",
+        "X-Model-Id": result.model_id,
         "X-Model-Name": result.model_name,
+        "X-Model-Kind": result.model_kind,
         "X-Model-Device": result.device,
         "X-Outscale": f"{result.outscale:.3f}",
-        "X-Upscale-Method": result.method,
         "X-Output-Width": str(result.output_width),
         "X-Output-Height": str(result.output_height),
     }

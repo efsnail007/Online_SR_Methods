@@ -1,56 +1,100 @@
 # Online_SR_Methods
 
-## Запуск по локальной сети
+Web-приложение для повышения разрешения кадров с камеры в реальном времени.
+Backend построен на FastAPI, frontend - на React/Vite.
 
-Сценарий: бэкенд работает на этом ПК, фронтенд запускается на ноутбуке с камерой.
+## Запуск
 
-### 1. Узнать IP этого ПК
+Все основные переменные окружения лежат в корневом `.env`.
 
-На ПК с бэкендом в PowerShell:
-
-```powershell
-Get-NetIPAddress -AddressFamily IPv4 |
-  Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.IPAddress -notlike "169.254*" } |
-  Select-Object IPAddress, InterfaceAlias
-```
-
-Дальше в примерах используется `192.168.1.10`; замените его на IP этого ПК.
-
-### 2. Запустить бэкенд на ПК
+Backend через Docker:
 
 ```powershell
-docker compose up backend
+docker compose build --no-cache backend-cpu
+docker compose up backend-cpu
 ```
 
-Бэкенд слушает `0.0.0.0:8000`, поэтому он доступен с другого устройства в той же Wi-Fi/LAN-сети:
+CUDA-вариант:
 
-```text
-http://192.168.1.10:8000/api/v1/health
+```powershell
+docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu24.04 nvidia-smi
+docker compose build --no-cache backend-cuda
+docker compose up backend-cuda
 ```
 
-Если ноутбук не видит бэкенд, разрешите входящие подключения TCP `8000` в Windows Firewall.
+Frontend:
 
-### 3. Запустить фронтенд на ноутбуке
+```powershell
+docker compose up frontend
+```
 
-На ноутбуке:
+Или локально:
 
 ```powershell
 cd src/frontend
 npm install
-$env:VITE_API_BASE_URL="http://192.168.1.10:8000/api/v1"
 npm run dev -- --host 0.0.0.0
 ```
 
-Откройте в браузере ноутбука:
+По умолчанию frontend ждёт API на `http://localhost:8000/api/v1`.
+Адрес можно поменять в `.env`, через query-параметр
+`http://localhost:5173/?api=http://192.168.1.10:8000/api/v1`,
+или прямо в поле `Backend URL` в интерфейсе.
+
+## Модели
+
+Backend теперь использует каталог моделей. UI получает список через:
 
 ```text
-http://localhost:5173
+GET /api/v1/models
 ```
 
-Камера в браузере надежнее всего работает именно через `localhost`. Если адрес API нужно поменять без перезапуска фронта, откройте:
+Инференс принимает `model_id`:
 
 ```text
-http://localhost:5173/?api=http://192.168.1.10:8000/api/v1
+POST /api/v1/upscale?model_id=bicubic&outscale=4&output_format=jpeg
 ```
 
-Или измените поле `Backend URL` в интерфейсе; значение сохранится в браузере ноутбука.
+Минимальная конфигурация задаётся через `.env`:
+
+```dotenv
+BACKEND_DEFAULT_MODEL_ID=realesrgan_x4plus
+BACKEND_STARTUP_MODEL_IDS=realesrgan_x4plus
+BACKEND_MODEL_WEIGHTS_PATH=src/backend/assets/weights/RealESRGAN_x4plus.pth
+# BACKEND_MODEL_CATALOG_PATH=src/backend/models.json
+```
+
+Если `BACKEND_MODEL_CATALOG_PATH` не задан, backend автоматически регистрирует:
+
+- `realesrgan_x4plus` - PyTorch Real-ESRGAN x4plus;
+- `bicubic` - встроенный baseline без весов.
+
+Пример каталога лежит в `src/backend/models.example.json`.
+Чтобы добавить ONNX-модель, скопируйте пример в `src/backend/models.json`,
+укажите путь к `.onnx`, включите переменную `BACKEND_MODEL_CATALOG_PATH` и
+установите optional extra:
+
+```powershell
+poetry install --extras onnx
+```
+
+Поддерживаемые `kind`:
+
+- `bicubic` - встроенный bicubic runtime;
+- `torch` с `architecture=realesrgan_x4plus` - текущая PyTorch-модель;
+- `onnx` - generic NCHW RGB runtime через `onnxruntime`.
+
+Новые форматы добавляются отдельным runtime-классом в
+`src/backend/app/ml/model_runtime.py` и одной веткой в `create_runtime`.
+
+## Poetry-варианты PyTorch
+
+```powershell
+poetry install --extras cpu
+poetry install --extras cuda
+```
+
+В Docker это разведено по файлам:
+
+- `src/backend/Dockerfile.cpu` устанавливает CPU-зависимости;
+- `src/backend/Dockerfile.cuda` устанавливает CUDA-зависимости.

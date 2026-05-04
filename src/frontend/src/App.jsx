@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 const DEFAULT_API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 const API_URL_STORAGE_KEY = "realesrgan.apiBaseUrl";
+const MODEL_ID_STORAGE_KEY = "realesrgan.modelId";
 const CAMERA_WIDTH = Number(import.meta.env.VITE_CAMERA_WIDTH ?? 640);
 const CAMERA_HEIGHT = Number(import.meta.env.VITE_CAMERA_HEIGHT ?? 360);
 const DEFAULT_PROCESS_WIDTH = Number(import.meta.env.VITE_PROCESS_WIDTH ?? 96);
@@ -14,11 +15,11 @@ const CAPTURE_MIME_TYPE = OUTPUT_FORMAT === "png" ? "image/png" : "image/jpeg";
 const CAPTURE_EXTENSION = OUTPUT_FORMAT === "png" ? "png" : "jpeg";
 const MIN_PROCESS_DIMENSION = 16;
 const MAX_PROCESS_DIMENSION = 2048;
-const UPSCALE_METHOD_OPTIONS = [
-  { value: "realesrgan", label: "Real-ESRGAN" },
-  { value: "bicubic", label: "Bicubic" },
+const FALLBACK_MODEL_OPTIONS = [
+  { id: "realesrgan_x4plus", name: "Real-ESRGAN x4plus", kind: "torch" },
+  { id: "bicubic", name: "Bicubic", kind: "bicubic" },
 ];
-const DEFAULT_UPSCALE_METHOD = UPSCALE_METHOD_OPTIONS[0].value;
+const FALLBACK_MODEL_ID = FALLBACK_MODEL_OPTIONS[0].id;
 
 function normalizeApiBaseUrl(value) {
   return value.trim().replace(/\/$/, "");
@@ -40,6 +41,22 @@ function writeStoredApiBaseUrl(value) {
   }
 }
 
+function readStoredModelId() {
+  try {
+    return window.localStorage.getItem(MODEL_ID_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredModelId(value) {
+  try {
+    window.localStorage.setItem(MODEL_ID_STORAGE_KEY, value);
+  } catch {
+    // The selected model still applies for the current session.
+  }
+}
+
 function getInitialApiBaseUrl() {
   const query = new URLSearchParams(window.location.search);
   return normalizeApiBaseUrl(
@@ -58,10 +75,8 @@ function formatFps(value) {
   return value <= 0 ? "0.0 fps" : `${value.toFixed(1)} fps`;
 }
 
-function formatMethodLabel(value) {
-  return (
-    UPSCALE_METHOD_OPTIONS.find((option) => option.value === value)?.label ?? value
-  );
+function formatModelLabel(value, models) {
+  return models.find((model) => model.id === value)?.name ?? value;
 }
 
 function normalizeProcessDimension(value, fallback) {
@@ -88,10 +103,14 @@ export default function App() {
   const apiBaseUrlRef = useRef(getInitialApiBaseUrl());
   const processWidthRef = useRef(DEFAULT_PROCESS_WIDTH);
   const processHeightRef = useRef(DEFAULT_PROCESS_HEIGHT);
-  const upscaleMethodRef = useRef(DEFAULT_UPSCALE_METHOD);
+  const selectedModelIdRef = useRef(readStoredModelId() ?? FALLBACK_MODEL_ID);
 
   const [apiBaseUrl, setApiBaseUrl] = useState(apiBaseUrlRef.current);
   const [apiBaseUrlInput, setApiBaseUrlInput] = useState(apiBaseUrlRef.current);
+  const [modelOptions, setModelOptions] = useState(FALLBACK_MODEL_OPTIONS);
+  const [selectedModelId, setSelectedModelId] = useState(
+    selectedModelIdRef.current,
+  );
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [sourceStatus, setSourceStatus] = useState("Idle");
@@ -108,7 +127,6 @@ export default function App() {
   const [processHeightInput, setProcessHeightInput] = useState(
     String(DEFAULT_PROCESS_HEIGHT),
   );
-  const [upscaleMethod, setUpscaleMethod] = useState(DEFAULT_UPSCALE_METHOD);
 
   const processWidth = normalizeProcessDimension(
     processWidthInput,
@@ -144,18 +162,40 @@ export default function App() {
   }, [processHeight]);
 
   useEffect(() => {
-    upscaleMethodRef.current = upscaleMethod;
-  }, [upscaleMethod]);
+    selectedModelIdRef.current = selectedModelId;
+    writeStoredModelId(selectedModelId);
+  }, [selectedModelId]);
 
   async function checkBackendHealth(baseUrl = apiBaseUrlRef.current) {
     try {
-      const response = await fetch(`${baseUrl}/health`);
-      if (!response.ok) {
-        throw new Error(`Backend responded with ${response.status}`);
+      const [healthResponse, modelsResponse] = await Promise.all([
+        fetch(`${baseUrl}/health`),
+        fetch(`${baseUrl}/models`),
+      ]);
+      if (!healthResponse.ok) {
+        throw new Error(`Backend responded with ${healthResponse.status}`);
       }
-      const payload = await response.json();
+      const payload = await healthResponse.json();
+      if (modelsResponse.ok) {
+        const catalog = await modelsResponse.json();
+        const models = catalog.models?.length
+          ? catalog.models
+          : FALLBACK_MODEL_OPTIONS;
+        const currentExists = models.some(
+          (model) => model.id === selectedModelIdRef.current,
+        );
+        const nextModelId = currentExists
+          ? selectedModelIdRef.current
+          : catalog.default_model_id;
+        if (mountedRef.current) {
+          setModelOptions(models);
+          setSelectedModelId(nextModelId);
+        }
+      }
       if (mountedRef.current) {
-        setBackendStatus(`Backend ready: ${payload.model_name} on ${payload.device}`);
+        setBackendStatus(
+          `Backend ready: ${payload.model_name} on ${payload.device}`,
+        );
       }
     } catch (error) {
       if (mountedRef.current) {
@@ -317,7 +357,7 @@ export default function App() {
       const requestQuery = new URLSearchParams({
         output_format: CAPTURE_EXTENSION,
         outscale: String(UPSCALE_OUTSCALE),
-        method: upscaleMethodRef.current,
+        model_id: selectedModelIdRef.current,
       });
       const response = await fetch(
         `${apiBaseUrlRef.current}/upscale?${requestQuery.toString()}`,
@@ -357,11 +397,14 @@ export default function App() {
         setRoundTripMs(requestEndedAt - requestStartedAt);
         setProcessedFps(fpsTimestampsRef.current.length);
         setLastResolution(
-          outputWidth && outputHeight ? `${outputWidth}×${outputHeight}` : "n/a",
+          outputWidth && outputHeight ? `${outputWidth}x${outputHeight}` : "n/a",
         );
         setLastError("");
         setBackendStatus(
-          `Streaming via ${formatMethodLabel(upscaleMethodRef.current)}`,
+          `Streaming via ${formatModelLabel(
+            selectedModelIdRef.current,
+            modelOptions,
+          )}`,
         );
       }
     } catch (error) {
@@ -404,7 +447,7 @@ export default function App() {
         <article className="stat-card">
           <span className="stat-label">Input frame</span>
           <strong>
-            {processWidth}×{processHeight}
+            {processWidth}x{processHeight}
           </strong>
         </article>
         <article className="stat-card">
@@ -425,19 +468,19 @@ export default function App() {
         <div className="settings-copy">
           <span className="status-tag">Send Size</span>
           <strong>
-            {processWidth}×{processHeight}
+            {processWidth}x{processHeight}
           </strong>
-          <p>These values and the selected method are applied to the next frame.</p>
+          <p>These values and the selected model are applied to the next frame.</p>
         </div>
         <label className="settings-field">
-          <span>Method</span>
+          <span>Model</span>
           <select
-            value={upscaleMethod}
-            onChange={(event) => setUpscaleMethod(event.target.value)}
+            value={selectedModelId}
+            onChange={(event) => setSelectedModelId(event.target.value)}
           >
-            {UPSCALE_METHOD_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {modelOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
               </option>
             ))}
           </select>
@@ -503,8 +546,8 @@ export default function App() {
         <div>
           <span className="status-tag">Preset</span>
           <span>
-            {formatMethodLabel(upscaleMethod)}, camera {CAMERA_WIDTH}×
-            {CAMERA_HEIGHT}, process {processWidth}×{processHeight}, API{" "}
+            {formatModelLabel(selectedModelId, modelOptions)}, camera {CAMERA_WIDTH}x
+            {CAMERA_HEIGHT}, process {processWidth}x{processHeight}, API{" "}
             {apiBaseUrl}, adaptive max fps, x{UPSCALE_OUTSCALE}
           </span>
         </div>

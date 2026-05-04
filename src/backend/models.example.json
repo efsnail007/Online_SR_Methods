@@ -1,0 +1,33 @@
+{
+  "models": [
+    {
+      "id": "realesrgan_x4plus",
+      "name": "RealESRGAN x4plus",
+      "kind": "torch",
+      "architecture": "realesrgan_x4plus",
+      "weights_path": "src/backend/assets/weights/RealESRGAN_x4plus.pth",
+      "scale": 4,
+      "tags": ["torch", "real-esrgan"]
+    },
+    {
+      "id": "edsr_x4_onnx",
+      "name": "EDSR x4 ONNX",
+      "kind": "onnx",
+      "architecture": "generic-nchw-rgb",
+      "weights_path": "src/backend/assets/weights/edsr_x4.onnx",
+      "scale": 4,
+      "tags": ["onnx"],
+      "options": {
+        "providers": ["CPUExecutionProvider"]
+      }
+    },
+    {
+      "id": "bicubic",
+      "name": "Bicubic",
+      "kind": "bicubic",
+      "architecture": "bicubic",
+      "scale": 1,
+      "tags": ["builtin"]
+    }
+  ]
+}

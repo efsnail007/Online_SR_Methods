@@ -1,20 +1,40 @@
+x-backend-common: &backend-common
+  env_file:
+    - .env
+  ports:
+    - "${BACKEND_PORT}:${BACKEND_PORT}"
+  volumes:
+    - ./src/backend:/app/src/backend
+  command: >
+    sh -c 'if [ "$BACKEND_RELOAD" = "true" ]; then
+      uvicorn --app-dir /app/src/backend app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --reload;
+    else
+      uvicorn --app-dir /app/src/backend app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT";
+    fi'
+
 services:
-  backend:
+  backend-cuda:
+    <<: *backend-common
     build:
       context: .
-      dockerfile: src/backend/Dockerfile.dev
-    env_file:
-      - .env
-    ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
-    volumes:
-      - ./src/backend:/app/src/backend
-    command: >
-      sh -c 'if [ "$BACKEND_RELOAD" = "true" ]; then
-        uvicorn --app-dir /app/src/backend app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --reload;
-      else
-        uvicorn --app-dir /app/src/backend app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT";
-      fi'
+      dockerfile: src/backend/Dockerfile.cuda
+    environment:
+      BACKEND_MODEL_DEVICE: ${BACKEND_CUDA_MODEL_DEVICE}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  backend-cpu:
+    <<: *backend-common
+    build:
+      context: .
+      dockerfile: src/backend/Dockerfile.cpu
+    environment:
+      BACKEND_MODEL_DEVICE: ${BACKEND_CPU_MODEL_DEVICE}
 
   frontend:
     build:
@@ -22,8 +42,6 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
-    depends_on:
-      - backend
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     volumes:

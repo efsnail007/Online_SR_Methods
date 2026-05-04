@@ -27,10 +27,17 @@ def build_client_factory(
             def unload(self) -> None:
                 return None
 
-            def model_info(self) -> dict[str, str | int | float | bool | None]:
+            def model_info(
+                self,
+                model_id: str | None = None,
+            ) -> dict[str, str | int | float | bool | None]:
+                del model_id
                 return {
                     "model_loaded": True,
+                    "model_id": self.settings.default_model_id,
                     "model_name": self.settings.model_name,
+                    "model_kind": "torch",
+                    "architecture": "realesrgan_x4plus",
                     "checkpoint_key": "params_ema",
                     "weights_path": str(self.settings.model_weights_path),
                     "device": "cpu",
@@ -38,13 +45,47 @@ def build_client_factory(
                     "use_channels_last": False,
                     "network_scale": 4,
                     "default_outscale": 4.0,
+                    "scale": 4.0,
+                    "description": None,
+                    "tags": [],
+                    "options": {},
                 }
+
+            def models_info(self) -> list[dict[str, object]]:
+                return [
+                    {
+                        "id": self.settings.default_model_id,
+                        "name": self.settings.model_name,
+                        "kind": "torch",
+                        "architecture": "realesrgan_x4plus",
+                        "loaded": True,
+                        "weights_path": str(self.settings.model_weights_path),
+                        "device": "cpu",
+                        "scale": 4.0,
+                        "description": None,
+                        "tags": [],
+                        "options": {},
+                    },
+                    {
+                        "id": "bicubic",
+                        "name": "Bicubic",
+                        "kind": "bicubic",
+                        "architecture": "bicubic",
+                        "loaded": True,
+                        "weights_path": None,
+                        "device": "cpu",
+                        "scale": 1.0,
+                        "description": None,
+                        "tags": [],
+                        "options": {},
+                    },
+                ]
 
             def process_raw_image(
                 self,
                 payload: bytes,
                 outscale: float | None = None,
-                method: str | None = None,
+                model_id: str | None = None,
                 output_format: str | None = None,
                 jpeg_quality: int | None = None,
                 png_compression: int | None = None,
@@ -53,7 +94,7 @@ def build_client_factory(
                 if raw_error is not None:
                     raise raw_error
                 selected_outscale = outscale or 4.0
-                selected_method = method or "realesrgan"
+                selected_model_id = model_id or self.settings.default_model_id
                 content_type = "image/png" if output_format == "png" else "image/jpeg"
                 return EncodedImageResult(
                     image_bytes=image_bytes,
@@ -64,12 +105,13 @@ def build_client_factory(
                     output_width=int(8 * selected_outscale),
                     output_height=int(8 * selected_outscale),
                     outscale=selected_outscale,
-                    method=selected_method,
+                    model_id=selected_model_id,
+                    model_kind="bicubic" if selected_model_id == "bicubic" else "torch",
                     device="cpu",
                     model_name=(
                         self.settings.model_name
-                        if selected_method == "realesrgan"
-                        else selected_method
+                        if selected_model_id == self.settings.default_model_id
+                        else "Bicubic"
                     ),
                 )
 
@@ -77,7 +119,7 @@ def build_client_factory(
                 self,
                 image_base64: str,
                 outscale: float | None = None,
-                method: str | None = None,
+                model_id: str | None = None,
                 output_format: str | None = None,
                 jpeg_quality: int | None = None,
                 png_compression: int | None = None,
@@ -86,7 +128,7 @@ def build_client_factory(
                 if base64_error is not None:
                     raise base64_error
                 selected_outscale = outscale or 4.0
-                selected_method = method or "realesrgan"
+                selected_model_id = model_id or self.settings.default_model_id
                 content_type = "image/png" if output_format == "png" else "image/jpeg"
                 return EncodedImageResult(
                     image_bytes=image_bytes,
@@ -97,12 +139,13 @@ def build_client_factory(
                     output_width=int(8 * selected_outscale),
                     output_height=int(8 * selected_outscale),
                     outscale=selected_outscale,
-                    method=selected_method,
+                    model_id=selected_model_id,
+                    model_kind="bicubic" if selected_model_id == "bicubic" else "torch",
                     device="cpu",
                     model_name=(
                         self.settings.model_name
-                        if selected_method == "realesrgan"
-                        else selected_method
+                        if selected_model_id == self.settings.default_model_id
+                        else "Bicubic"
                     ),
                 )
 
@@ -124,6 +167,7 @@ def test_health_endpoint_returns_loaded_model(
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["model_loaded"] is True
+    assert response.json()["model_id"] == "realesrgan_x4plus"
 
 
 def test_model_endpoint_returns_backend_metadata(
@@ -140,20 +184,36 @@ def test_model_endpoint_returns_backend_metadata(
     assert payload["network_scale"] == 4
 
 
+def test_models_endpoint_returns_available_models(
+    monkeypatch, sample_png_bytes: bytes
+) -> None:
+    client_factory = build_client_factory(monkeypatch, sample_png_bytes)
+    with client_factory() as client:
+        response = client.get("/api/v1/models")
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["default_model_id"] == "realesrgan_x4plus"
+    assert [model["id"] for model in payload["models"]] == [
+        "realesrgan_x4plus",
+        "bicubic",
+    ]
+
+
 def test_upscale_endpoint_returns_image_response(
     monkeypatch, sample_png_bytes: bytes
 ) -> None:
     client_factory = build_client_factory(monkeypatch, sample_png_bytes)
     with client_factory() as client:
         response = client.post(
-            "/api/v1/upscale?output_format=png&outscale=2&method=bicubic",
+            "/api/v1/upscale?output_format=png&outscale=2&model_id=bicubic",
             content=sample_png_bytes,
             headers={"content-type": "application/octet-stream"},
         )
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/png"
-    assert response.headers["x-upscale-method"] == "bicubic"
+    assert response.headers["x-model-id"] == "bicubic"
     assert response.headers["x-output-width"] == "16"
     assert response.headers["x-output-height"] == "16"
     assert response.content == sample_png_bytes
@@ -169,7 +229,7 @@ def test_upscale_base64_endpoint_returns_json_payload(
             "/api/v1/upscale/base64",
             json={
                 "image_base64": base64.b64encode(sample_png_bytes).decode("ascii"),
-                "method": "bicubic",
+                "model_id": "bicubic",
                 "output_format": "png",
             },
         )
@@ -177,7 +237,7 @@ def test_upscale_base64_endpoint_returns_json_payload(
     payload = response.json()
     assert response.status_code == 200
     assert payload["content_type"] == "image/png"
-    assert payload["method"] == "bicubic"
+    assert payload["model_id"] == "bicubic"
     assert payload["image_base64"] == base64.b64encode(sample_png_bytes).decode("ascii")
 
 

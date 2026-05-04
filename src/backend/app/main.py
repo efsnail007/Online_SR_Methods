@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     service = SuperResolutionService(settings)
-    logger.info("Loading model from %s", settings.model_weights_path)
+    logger.info("Loading startup models: %s", ", ".join(settings.startup_model_ids))
     await run_in_threadpool(service.load)
     app.state.sr_service = service
     try:
@@ -41,10 +41,11 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
             expose_headers=[
                 "X-Inference-Time-Ms",
+                "X-Model-Id",
                 "X-Model-Name",
+                "X-Model-Kind",
                 "X-Model-Device",
                 "X-Outscale",
-                "X-Upscale-Method",
                 "X-Output-Width",
                 "X-Output-Height",
             ],

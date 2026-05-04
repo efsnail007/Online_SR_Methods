@@ -1,0 +1,24 @@
+FROM python:3.13-slim
+
+ARG POETRY_VERSION=2.3.2
+
+ENV NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+
+COPY pyproject.toml poetry.lock ./
+RUN poetry config installer.re-resolve false && \
+    poetry install --only main --extras cuda --no-root
+
+COPY src/backend /app/src/backend
+
+EXPOSE 8000
+
+CMD ["uvicorn", "--app-dir", "/app/src/backend", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
