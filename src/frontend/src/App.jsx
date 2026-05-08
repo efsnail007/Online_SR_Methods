@@ -91,13 +91,19 @@ function normalizeProcessDimension(value, fallback) {
   );
 }
 
+function getUpscaledDimension(value) {
+  return Math.max(1, Math.round(value * UPSCALE_OUTSCALE));
+}
+
 export default function App() {
   const videoRef = useRef(null);
+  const previewCanvasRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const requestInFlightRef = useRef(false);
   const cameraActiveRef = useRef(false);
   const loopTimerRef = useRef(null);
+  const previewFrameRef = useRef(null);
   const lastFrameUrlRef = useRef(null);
   const fpsTimestampsRef = useRef([]);
   const mountedRef = useRef(true);
@@ -137,6 +143,7 @@ export default function App() {
     processHeightInput,
     DEFAULT_PROCESS_HEIGHT,
   );
+  const frameAspectRatio = `${processWidth} / ${processHeight}`;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -145,7 +152,9 @@ export default function App() {
     return () => {
       mountedRef.current = false;
       stopProcessingLoop();
+      stopPreviewLoop();
       stopCameraTracks();
+      clearPreviewCanvas();
       releaseCurrentFrameUrl();
     };
   }, []);
@@ -239,11 +248,70 @@ export default function App() {
     requestInFlightRef.current = false;
   }
 
+  function stopPreviewLoop() {
+    if (previewFrameRef.current) {
+      window.cancelAnimationFrame(previewFrameRef.current);
+      previewFrameRef.current = null;
+    }
+  }
+
   function releaseCurrentFrameUrl() {
     if (lastFrameUrlRef.current) {
       URL.revokeObjectURL(lastFrameUrlRef.current);
       lastFrameUrlRef.current = null;
     }
+  }
+
+  function clearPreviewCanvas() {
+    const previewCanvasElement = previewCanvasRef.current;
+    const context = previewCanvasElement?.getContext("2d");
+    if (!previewCanvasElement || !context) {
+      return;
+    }
+    context.clearRect(
+      0,
+      0,
+      previewCanvasElement.width,
+      previewCanvasElement.height,
+    );
+  }
+
+  function drawSourcePreview() {
+    const videoElement = videoRef.current;
+    const previewCanvasElement = previewCanvasRef.current;
+
+    if (
+      !cameraActiveRef.current ||
+      !videoElement ||
+      !previewCanvasElement ||
+      videoElement.readyState < 2 ||
+      videoElement.videoWidth === 0
+    ) {
+      previewFrameRef.current = window.requestAnimationFrame(drawSourcePreview);
+      return;
+    }
+
+    const context = previewCanvasElement.getContext("2d");
+    if (context) {
+      const previewWidth = getUpscaledDimension(processWidthRef.current);
+      const previewHeight = getUpscaledDimension(processHeightRef.current);
+
+      if (previewCanvasElement.width !== previewWidth) {
+        previewCanvasElement.width = previewWidth;
+      }
+      if (previewCanvasElement.height !== previewHeight) {
+        previewCanvasElement.height = previewHeight;
+      }
+
+      context.drawImage(videoElement, 0, 0, previewWidth, previewHeight);
+    }
+
+    previewFrameRef.current = window.requestAnimationFrame(drawSourcePreview);
+  }
+
+  function startPreviewLoop() {
+    stopPreviewLoop();
+    previewFrameRef.current = window.requestAnimationFrame(drawSourcePreview);
   }
 
   function commitProcessWidth() {
@@ -286,10 +354,13 @@ export default function App() {
       setCameraReady(true);
       setCameraActive(true);
       setSourceStatus("Камера включена");
+      startPreviewLoop();
       scheduleNextFrame(0);
     } catch (error) {
       cameraActiveRef.current = false;
+      stopPreviewLoop();
       stopCameraTracks();
+      clearPreviewCanvas();
       setCameraReady(false);
       setCameraActive(false);
       setSourceStatus("Камера недоступна");
@@ -302,7 +373,9 @@ export default function App() {
   function stopCamera() {
     cameraActiveRef.current = false;
     stopProcessingLoop();
+    stopPreviewLoop();
     stopCameraTracks();
+    clearPreviewCanvas();
     setCameraActive(false);
     setCameraReady(false);
     setSourceStatus("Поток остановлен");
@@ -567,14 +640,20 @@ export default function App() {
             <span>Камера</span>
             <span>{cameraReady ? "в эфире" : "ожидание"}</span>
           </div>
-          <div className="frame-surface">
+          <div className="frame-surface" style={{ aspectRatio: frameAspectRatio }}>
+            <canvas ref={previewCanvasRef} className="frame-canvas" />
             <video
               ref={videoRef}
               autoPlay
               muted
               playsInline
-              className="frame-video"
+              className="stream-source-video"
             />
+            {!cameraReady ? (
+              <div className="frame-placeholder">
+                Поток камеры появится здесь.
+              </div>
+            ) : null}
           </div>
         </article>
 
@@ -583,7 +662,7 @@ export default function App() {
             <span>Результат апскейлинга</span>
             <span>{processedFrameUrl ? "получение" : "ожидание"}</span>
           </div>
-          <div className="frame-surface">
+          <div className="frame-surface" style={{ aspectRatio: frameAspectRatio }}>
             {processedFrameUrl ? (
               <img
                 alt="Кадр после апскейлинга"

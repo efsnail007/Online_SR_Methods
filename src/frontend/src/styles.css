@@ -273,17 +273,29 @@ body {
 
 .frame-surface {
   position: relative;
-  aspect-ratio: 16 / 10;
   background:
     linear-gradient(135deg, rgba(32, 34, 40, 0.96), rgba(15, 17, 21, 0.98));
 }
 
-.frame-video,
+.frame-canvas,
 .frame-image {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.frame-image {
   object-fit: cover;
+}
+
+.stream-source-video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .frame-placeholder {
