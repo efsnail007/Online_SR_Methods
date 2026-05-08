@@ -1,0 +1,150 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pageBg" x1="80" y1="40" x2="1520" y2="940" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F4EE"/>
+      <stop offset="0.5" stop-color="#F7FAFC"/>
+      <stop offset="1" stop-color="#E7EEF7"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" stroke="#CBD5E1" stroke-opacity="0.28" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="clientFill" x1="70" y1="190" x2="370" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F4F8FC"/>
+    </linearGradient>
+    <linearGradient id="frontFill" x1="430" y1="190" x2="790" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFEAB0"/>
+      <stop offset="1" stop-color="#FFD27E"/>
+    </linearGradient>
+    <linearGradient id="apiFill" x1="870" y1="190" x2="1230" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DDF3E2"/>
+      <stop offset="1" stop-color="#BDE5C7"/>
+    </linearGradient>
+    <linearGradient id="serviceFill" x1="870" y1="530" x2="1230" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E7EBFF"/>
+      <stop offset="1" stop-color="#D5DCFF"/>
+    </linearGradient>
+    <linearGradient id="mlFill" x1="1270" y1="530" x2="1530" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE1D4"/>
+      <stop offset="1" stop-color="#FFC6AE"/>
+    </linearGradient>
+    <linearGradient id="infraFill" x1="70" y1="530" x2="790" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EEF2F7"/>
+      <stop offset="1" stop-color="#E0E6EE"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-12%" width="120%" height="130%" filterUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#1E293B" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0L14 7L0 14V0Z" fill="#334155"/>
+    </marker>
+    <marker id="arrowSoft" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0L14 7L0 14V0Z" fill="#64748B"/>
+    </marker>
+    <style>
+      .title { font: 700 46px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #1E293B; }
+      .subtitle { font: 400 18px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #475569; }
+      .chip { font: 700 13px Arial, Helvetica, "DejaVu Sans", sans-serif; letter-spacing: 0.04em; text-transform: uppercase; fill: #334155; }
+      .cardTitle { font: 700 28px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #172033; }
+      .cardSub { font: 700 15px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #475569; }
+      .body { font: 400 16px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #243244; }
+      .small { font: 400 14px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #516075; }
+      .label { font: 700 13px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #334155; }
+      .note { font: 400 15px Arial, Helvetica, "DejaVu Sans", sans-serif; fill: #516075; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="980" rx="36" fill="url(#pageBg)"/>
+  <rect x="36" y="36" width="1528" height="908" rx="28" fill="url(#grid)"/>
+
+  <text x="70" y="92" class="title">Общая архитектура приложения</text>
+  <text x="70" y="128" class="subtitle">Браузер отправляет кадры на FastAPI, сервер выбирает ML-модель и возвращает JPEG/PNG с метриками.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="190" width="300" height="290" rx="24" fill="url(#clientFill)" stroke="#D8E1EC" stroke-width="2"/>
+    <rect x="96" y="216" width="106" height="30" rx="15" fill="#E8F1FF"/>
+    <text x="122" y="236" class="chip">Клиент</text>
+    <text x="96" y="292" class="cardTitle">Браузер</text>
+    <text x="96" y="322" class="cardSub">пользователь и веб-камера</text>
+    <text x="96" y="366" class="body">- getUserMedia получает поток</text>
+    <text x="96" y="398" class="body">- video показывает исходный кадр</text>
+    <text x="96" y="430" class="body">- canvas готовит кадр к отправке</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="430" y="190" width="360" height="290" rx="24" fill="url(#frontFill)" stroke="#E4A23A" stroke-width="2"/>
+    <rect x="456" y="216" width="124" height="30" rx="15" fill="#FFF8E4"/>
+    <text x="486" y="236" class="chip">Frontend</text>
+    <text x="456" y="292" class="cardTitle">React 19 + Vite</text>
+    <text x="456" y="322" class="cardSub">src/frontend/src/App.jsx</text>
+    <text x="456" y="366" class="body">- проверяет /health и /models</text>
+    <text x="456" y="398" class="body">- кодирует кадр в JPEG или PNG</text>
+    <text x="456" y="430" class="body">- показывает результат и метрики</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="870" y="190" width="360" height="290" rx="24" fill="url(#apiFill)" stroke="#76B989" stroke-width="2"/>
+    <rect x="896" y="216" width="112" height="30" rx="15" fill="#EFFBF2"/>
+    <text x="928" y="236" class="chip">Backend</text>
+    <text x="896" y="292" class="cardTitle">API FastAPI</text>
+    <text x="896" y="322" class="cardSub">app/main.py и app/api/routes.py</text>
+    <text x="896" y="366" class="body">- создаёт приложение и CORS</text>
+    <text x="896" y="398" class="body">- endpoints: health, models, upscale</text>
+    <text x="896" y="430" class="body">- lifespan загружает стартовые модели</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="530" width="720" height="290" rx="24" fill="url(#infraFill)" stroke="#C4CEDA" stroke-width="2"/>
+    <rect x="96" y="556" width="164" height="30" rx="15" fill="#FFFFFF"/>
+    <text x="124" y="576" class="chip">Окружение</text>
+    <text x="96" y="632" class="cardTitle">Конфигурация и запуск</text>
+    <text x="96" y="662" class="cardSub">.env, Docker Compose, каталог моделей и веса</text>
+    <text x="96" y="692" class="body">- Settings.from_env() читает .env и параметры backend</text>
+    <text x="96" y="720" class="body">- Docker Compose запускает frontend и backend</text>
+    <text x="96" y="748" class="body">- backend доступен в CPU или CUDA варианте</text>
+    <text x="96" y="776" class="body">- assets/weights хранит веса RealESRGAN и SRCNN</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="870" y="530" width="360" height="290" rx="24" fill="url(#serviceFill)" stroke="#99A8F3" stroke-width="2"/>
+    <rect x="896" y="556" width="146" height="30" rx="15" fill="#F7F8FF"/>
+    <text x="922" y="576" class="chip">Сервис</text>
+    <text x="896" y="632" class="cardTitle">Обработка кадра</text>
+    <text x="896" y="662" class="cardSub">SuperResolutionService</text>
+    <text x="896" y="708" class="body">- проверяет payload и параметры</text>
+    <text x="896" y="740" class="body">- decode: bytes/base64 -> BGR</text>
+    <text x="896" y="772" class="body">- encode: BGR -> JPEG/PNG</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1270" y="530" width="260" height="290" rx="24" fill="url(#mlFill)" stroke="#EE8960" stroke-width="2"/>
+    <rect x="1296" y="556" width="98" height="30" rx="15" fill="#FFF4EE"/>
+    <text x="1322" y="576" class="chip">ML</text>
+    <text x="1296" y="632" class="cardTitle">Runtime</text>
+    <text x="1296" y="662" class="cardSub">ModelRegistry + PyTorch</text>
+    <text x="1296" y="708" class="body">- RealESRGAN</text>
+    <text x="1296" y="740" class="body">- SRCNN</text>
+    <text x="1296" y="772" class="body">- Bicubic, CPU/CUDA</text>
+  </g>
+
+  <rect x="1190" y="72" width="340" height="112" rx="20" fill="#FFFFFF" stroke="#D7DEE7" stroke-width="2"/>
+  <text x="1216" y="108" class="cardSub">Развёртывание</text>
+  <text x="1216" y="132" class="small">frontend, backend-cpu, backend-cuda</text>
+
+  <path d="M370 315H430" stroke="#334155" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M790 315H870" stroke="#334155" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <text x="812" y="300" class="label">HTTP</text>
+
+  <path d="M1050 480V530" stroke="#334155" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1230 655H1270" stroke="#334155" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+  <path d="M870 360H790" stroke="#64748B" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 10" marker-end="url(#arrowSoft)"/>
+  <text x="798" y="383" class="label">ответ</text>
+
+  <path d="M790 655H870" stroke="#64748B" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 10" marker-end="url(#arrowSoft)"/>
+  <path d="M1360 184V530" stroke="#64748B" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 10" marker-end="url(#arrowSoft)"/>
+
+  <rect x="70" y="850" width="1460" height="74" rx="18" fill="#FFFFFF" fill-opacity="0.72" stroke="#E2E8F0"/>
+  <text x="96" y="884" class="note">Поток данных: камера -> canvas -> POST /api/v1/upscale -> SuperResolutionService -> выбранный runtime -> JPEG/PNG ответ с метриками.</text>
+  <text x="96" y="910" class="note">Приложение отправляет отдельные кадры по HTTP, а не использует WebSocket или WebRTC видеострим.</text>
+</svg>
